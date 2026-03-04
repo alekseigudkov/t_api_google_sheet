@@ -17,12 +17,15 @@
 
 - В таблице есть `instrument_name` (краткое) и `instrument_full_name` (полное наименование).
 - Добавлен столбец `account_name`, чтобы фильтрация/сводные по счетам были нагляднее.
-- Колонки `source` и `figi` автоматически скрываются после выгрузки (данные остаются в таблице).
+- Колонки `source`, `figi`, `lot`, `min_price_increment` автоматически скрываются после выгрузки (данные остаются в таблице).
 - Для числовых колонок выполняется явное приведение к числу и числовой формат, чтобы сортировка работала корректно.
+- Добавляется оформление таблицы: жирный заголовок, фильтры по заголовкам, чередование цветов строк (белый/серый).
 - Для фьючерсов:
   - `min_price_increment` = минимальный шаг цены;
-  - `point_price` = стоимость 1 пункта цены = `minPriceIncrementAmount / minPriceIncrement`;
-  - `current_position_value` = `quantity * current_price * point_price`.
+  - `point_price` = стоимость 1 пункта цены = `minPriceIncrementAmount / minPriceIncrement`.
+- `current_position_value` считается для всех активов:
+  - для фьючерсов: `quantity * current_price * point_price`;
+  - для остальных: `quantity * current_price`.
 - Значение `blocked` берется из нескольких источников (приоритетно из `GetPositions`, с fallback на `GetPortfolio`) и из нескольких полей (`blocked`, `blockedLots`, `blockedQuantity`).
 
 ## 1) Что нужно подготовить
@@ -53,7 +56,19 @@ syncTinkoffToSheet
 
 При первом запуске Google попросит выдать разрешения скрипту.
 
-## 5) Результат
+
+## 5) Автозапуск и запуск через меню
+
+После сохранения скрипта в таблице появляется меню **Т-Инвестиции** с пунктом **Обновить данные**.
+
+- Ручной запуск: **Т-Инвестиции → Обновить данные**.
+- Автозапуск при открытии файла: добавьте Script Property
+  - Name: `AUTO_SYNC_ON_OPEN`
+  - Value: `true`
+
+Если `AUTO_SYNC_ON_OPEN` не задан или равен `false`, при открытии файл только добавит меню без обновления данных.
+
+## 6) Результат
 
 Колонки листа `positions`:
 - `account_id`
@@ -69,7 +84,7 @@ syncTinkoffToSheet
 - `expected_yield`
 - `current_price`
 - `currency`
-- `lot`
-- `min_price_increment`
+- `lot` (скрыт)
+- `min_price_increment` (скрыт)
 - `point_price`
 - `current_position_value`

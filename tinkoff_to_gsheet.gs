@@ -3,6 +3,25 @@
  */
 
 const TINKOFF_API_BASE = 'https://invest-public-api.tinkoff.ru/rest';
+const AUTO_SYNC_PROPERTY = 'AUTO_SYNC_ON_OPEN';
+
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('Т-Инвестиции')
+    .addItem('Обновить данные', 'menuRefreshData_')
+    .addToUi();
+
+  const autoSyncEnabled =
+    String(PropertiesService.getScriptProperties().getProperty(AUTO_SYNC_PROPERTY) || '').toLowerCase() === 'true';
+
+  if (autoSyncEnabled) {
+    menuRefreshData_();
+  }
+}
+
+function menuRefreshData_() {
+  syncTinkoffToSheet();
+}
 
 function syncTinkoffToSheet() {
   const token = PropertiesService.getScriptProperties().getProperty('TINKOFF_TOKEN');
@@ -84,8 +103,7 @@ function syncTinkoffToSheet() {
 
       const qty = parseNumericField_(position.quantity);
       const currentPrice = parseNumericField_(position.currentPrice);
-      const currentPositionValue =
-        instrumentType === 'futures' && pointPrice !== null ? qty * currentPrice * pointPrice : null;
+      const currentPositionValue = computeCurrentPositionValue_(instrumentType, qty, currentPrice, pointPrice);
 
       const blockedValue = resolveBlocked_(position, blockedIndex);
 
@@ -163,9 +181,32 @@ function postProcessPositionsSheet_() {
   if (!sheet) return;
 
   // Скрываем технические колонки, но оставляем в таблице.
-  sheet.hideColumns(3, 2); // source, figi
+  // C:source, D:figi, N:lot, O:min_price_increment
+  sheet.hideColumns(3, 2);
+  sheet.hideColumns(14, 2);
 
   const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  if (lastRow < 1 || lastCol < 1) return;
+
+  // Оформление: заголовок, фильтр и чередование цветов.
+  const headerRange = sheet.getRange(1, 1, 1, lastCol);
+  headerRange.setFontWeight('bold');
+  headerRange.setBackground('#d9ead3');
+  headerRange.setWrap(true);
+
+  if (sheet.getFilter()) {
+    sheet.getFilter().remove();
+  }
+  if (lastRow >= 2) {
+    sheet.getRange(1, 1, lastRow, lastCol).createFilter();
+  }
+
+  const bandingRange = sheet.getRange(1, 1, Math.max(lastRow, 2), lastCol);
+  const existingBandings = sheet.getBandings();
+  existingBandings.forEach((b) => b.remove());
+  bandingRange.applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY);
+
   if (lastRow < 2) return;
 
   // Преобразуем потенциально текстовые числа в number и выставляем числовой формат.
@@ -228,6 +269,18 @@ function resolveBlocked_(position, blockedIndex) {
   if (byUid !== undefined) return byUid;
 
   return 0;
+}
+
+
+function computeCurrentPositionValue_(instrumentType, qty, currentPrice, pointPrice) {
+  if (!qty || !currentPrice) return null;
+
+  if (instrumentType === 'futures') {
+    if (pointPrice === null || pointPrice === undefined) return null;
+    return qty * currentPrice * pointPrice;
+  }
+
+  return qty * currentPrice;
 }
 
 function resolveInstrumentFullName_(position, token, futuresMeta, cache) {
